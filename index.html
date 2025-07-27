@@ -4,7 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>印刷用特訓リスト作成</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx-js-style/1.2.0/xlsx.bundle.js"></script>
+    <!-- 複数のCDNを試して確実に読み込む -->
+    <script>
+        // 複数のCDNを順番に試す
+        const cdnSources = [
+            'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+            'https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+            'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+        ];
+        
+        let currentCdnIndex = 0;
+        
+        function loadNextCdn() {
+            if (currentCdnIndex >= cdnSources.length) {
+                console.error('すべてのCDNから読み込みに失敗しました');
+                return;
+            }
+            
+            const script = document.createElement('script');
+            script.src = cdnSources[currentCdnIndex];
+            script.onload = function() {
+                if (typeof XLSX !== 'undefined') {
+                    console.log(`XLSX ライブラリが読み込まれました: ${cdnSources[currentCdnIndex]}`);
+                    if (currentCdnIndex < 2) {
+                        console.log('xlsx-js-style が使用可能です（罫線とスタイル機能付き）');
+                        window.xlsxStyleSupported = true;
+                    } else {
+                        console.log('通常のSheetJSを使用します（罫線機能は制限されます）');
+                        window.xlsxStyleSupported = false;
+                    }
+                } else {
+                    currentCdnIndex++;
+                    loadNextCdn();
+                }
+            };
+            script.onerror = function() {
+                console.warn(`CDN読み込み失敗: ${cdnSources[currentCdnIndex]}`);
+                currentCdnIndex++;
+                loadNextCdn();
+            };
+            document.head.appendChild(script);
+        }
+        
+        // 読み込み開始
+        loadNextCdn();
+    </script></script>
     <style>
         * {
             margin: 0;
@@ -331,6 +376,12 @@
                 const arrayBuffer = await file.arrayBuffer();
                 
                 updateProgress(20, 'Excelファイルを解析しています...');
+                
+                // XLSX オブジェクトの確認
+                if (typeof XLSX === 'undefined') {
+                    throw new Error('XLSXライブラリが読み込まれていません。ページを再読み込みしてください。');
+                }
+                
                 const workbook = XLSX.read(arrayBuffer, {
                     cellStyles: true,
                     cellFormulas: true,
@@ -419,8 +470,8 @@
                             right: { style: 'thin', color: { rgb: '000000' } }
                         };
                         
-                        // 新宿校以外の場合は背景色を設定
-                        if (!isShinjukuCampus && fillColor) {
+                        // 新宿校以外の場合は背景色を設定（スタイル対応ライブラリの場合のみ）
+                        if (!isShinjukuCampus && fillColor && window.xlsxStyleSupported) {
                             worksheet[cellAddress].s.fill = fillColor;
                         }
                     }
