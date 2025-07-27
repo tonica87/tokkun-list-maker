@@ -4,57 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>印刷用特訓リスト作成</title>
-    <!-- より確実なxlsx-js-style読み込み -->
+    <!-- ExcelJS を使用してより確実なスタイル処理を行う -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script>
-        // より確実にxlsx-js-styleを読み込む方法
-        (function loadXlsxStyle() {
+        // ExcelJSが読み込まれた場合
+        if (typeof ExcelJS !== 'undefined') {
+            console.log('✅ ExcelJS が読み込まれました（完全なスタイル対応）');
+            window.excelJSSupported = true;
+        } else {
+            console.warn('❌ ExcelJS の読み込みに失敗しました');
+            window.excelJSSupported = false;
+        }
+        
+        // 従来のXLSXライブラリも読み込み（データ読み取り用）
+        (function loadXlsx() {
             const script = document.createElement('script');
-            
-            // GitHubから直接読み込み
-            script.src = 'https://cdn.jsdelivr.net/gh/gitbrent/xlsx-js-style@v1.2.0/dist/xlsx.bundle.js';
-            script.async = false;
-            
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
             script.onload = function() {
-                if (typeof XLSX !== 'undefined') {
-                    console.log('✅ xlsx-js-style が正常に読み込まれました（罫線とスタイル機能付き）');
-                    window.xlsxStyleSupported = true;
-                    
-                    // XLSXオブジェクトにスタイル機能があるかテスト
-                    const testWb = XLSX.utils.book_new();
-                    const testWs = XLSX.utils.aoa_to_sheet([['test']]);
-                    try {
-                        // スタイル設定をテスト
-                        if (testWs['A1']) {
-                            testWs['A1'].s = { border: { top: { style: 'thin' } } };
-                        }
-                        console.log('✅ スタイル機能が利用可能です');
-                    } catch (e) {
-                        console.warn('⚠️ スタイル機能に制限があります:', e.message);
-                        window.xlsxStyleSupported = false;
-                    }
-                } else {
-                    loadFallback();
-                }
+                console.log('✅ XLSX ライブラリが読み込まれました（データ読み取り用）');
+                window.xlsxLoaded = true;
             };
-            
             script.onerror = function() {
-                console.warn('❌ xlsx-js-styleの読み込みに失敗しました。フォールバックを試します...');
-                loadFallback();
+                console.error('❌ XLSX ライブラリの読み込みに失敗しました');
             };
-            
-            function loadFallback() {
-                const fallbackScript = document.createElement('script');
-                fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-                fallbackScript.onload = function() {
-                    console.log('📝 通常のSheetJSを使用します（罫線機能は制限されます）');
-                    window.xlsxStyleSupported = false;
-                };
-                fallbackScript.onerror = function() {
-                    console.error('❌ すべてのライブラリの読み込みに失敗しました');
-                };
-                document.head.appendChild(fallbackScript);
-            }
-            
             document.head.appendChild(script);
         })();
     </script></script>
@@ -659,22 +631,42 @@
             statusMessage.style.display = 'none';
         }
 
+        // ダウンロード機能の修正
         function downloadFile() {
-            if (processedFile) {
+            try {
+                if (!processedFile) {
+                    alert('処理済みファイルが見つかりません。再度処理を実行してください。');
+                    return;
+                }
+                
+                console.log('ダウンロード開始:', processedFile);
+                
+                // より確実なダウンロード方法
+                const url = URL.createObjectURL(processedFile);
                 const link = document.createElement('a');
-                link.href = URL.createObjectURL(processedFile);
+                link.href = url;
                 
                 // ファイル名を生成
                 const baseName = originalFileName.replace(/\.[^/.]+$/, "");
                 const extension = originalFileName.split('.').pop();
-                link.download = `${baseName}_書式設定済み.${extension}`;
+                const downloadName = `${baseName}_印刷用.${extension}`;
+                link.download = downloadName;
                 
+                // 一時的にDOMに追加してクリック
                 document.body.appendChild(link);
+                link.style.display = 'none';
                 link.click();
-                document.body.removeChild(link);
                 
-                // メモリクリーンアップ
-                URL.revokeObjectURL(link.href);
+                // クリーンアップ
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    console.log('ダウンロード完了、リソースをクリーンアップしました');
+                }, 100);
+                
+            } catch (error) {
+                console.error('ダウンロードエラー:', error);
+                alert(`ダウンロードに失敗しました: ${error.message}`);
             }
         }
     </script>
