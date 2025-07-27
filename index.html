@@ -491,6 +491,12 @@
                         // 既存の書式設定を保持
                         const existingStyle = { ...worksheet[cellAddress].s };
                         
+                        // 罫線設定の詳細診断
+                        if (row === startRow - 1 && col <= 2) { // 最初の行のA,B,C列のみ詳細ログ
+                            console.log(`=== セル ${cellAddress} の詳細診断 ===`);
+                            console.log('処理前のセル:', JSON.stringify(worksheet[cellAddress], null, 2));
+                        }
+                        
                         // 罫線を設定（スタイル対応の場合とそうでない場合で分岐）
                         if (window.xlsxStyleSupported) {
                             // xlsx-js-styleが利用可能な場合の完全な罫線設定
@@ -508,6 +514,10 @@
                                 left: { style: 'thin' },
                                 right: { style: 'thin' }
                             };
+                        }
+                        
+                        if (row === startRow - 1 && col <= 2) { // 診断続き
+                            console.log('罫線設定後:', JSON.stringify(worksheet[cellAddress].s.border, null, 2));
                         }
                         
                         // 既存のフォント、配置、数値書式などを維持
@@ -528,11 +538,26 @@
                             // 新宿校の場合は既存の背景色を維持
                             worksheet[cellAddress].s.fill = existingStyle.fill;
                         }
+                        if (row === startRow - 1 && col <= 2) { // 診断の最終確認
+                            console.log('最終的なセル状態:', JSON.stringify(worksheet[cellAddress], null, 2));
+                            console.log('---');
+                        }
                     }
                     
-                    // 最初の行の処理が完了したらデバッグ情報を出力
+                    // 最初の行の処理が完了したらワークシート全体の状態を確認
                     if (row === startRow - 1) {
                         console.log(`罫線適用完了: A列～${String.fromCharCode(65 + maxCol)}列 (列インデックス 0～${maxCol})`);
+                        
+                        // A列の複数セルを確認
+                        console.log('=== A列の状態確認 ===');
+                        for (let checkRow = startRow - 1; checkRow < Math.min(startRow + 2, endRow); checkRow++) {
+                            const checkCell = `A${checkRow + 1}`;
+                            if (worksheet[checkCell] && worksheet[checkCell].s && worksheet[checkCell].s.border) {
+                                console.log(`${checkCell}: 罫線設定済み`);
+                            } else {
+                                console.log(`${checkCell}: 罫線設定なし`);
+                            }
+                        }
                     }
                 }
 
@@ -541,6 +566,18 @@
                 const newWorkbook = XLSX.utils.book_new();
                 Object.keys(workbook.Sheets).forEach(name => {
                     XLSX.utils.book_append_sheet(newWorkbook, workbook.Sheets[name], name);
+                });
+                
+                // 保存前の最終確認
+                console.log('=== 保存前の最終確認 ===');
+                const finalCheck = newWorkbook.Sheets[sheetName];
+                const checkCells = ['A5', 'B5', 'C5', 'A6', 'B6', 'C6'];
+                checkCells.forEach(cellAddr => {
+                    if (finalCheck[cellAddr] && finalCheck[cellAddr].s && finalCheck[cellAddr].s.border) {
+                        console.log(`✅ ${cellAddr}: 罫線あり`);
+                    } else {
+                        console.log(`❌ ${cellAddr}: 罫線なし`);
+                    }
                 });
 
                 // Excelファイルとして出力
