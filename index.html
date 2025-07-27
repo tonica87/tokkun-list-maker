@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>印刷用特訓リスト作成</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx-js-style/1.2.0/xlsx.bundle.js"></script>
     <style>
         * {
             margin: 0;
@@ -239,8 +239,9 @@
             <h3>🔧 処理内容</h3>
             <ul>
                 <li>データの入っている最後の行を自動検出</li>
-                <li>5行目からデータの最後の行まで、行の高さを50に設定</li>
+                <li>5行目からデータの最後の行まで、行の高さを50ピクセルに設定</li>
                 <li>指定範囲のすべてのセルに格子罫線を適用</li>
+                <li>新宿校以外のデータはグレー背景で表示</li>
                 <li>元のファイルは変更せず、新しいファイルとして保存</li>
             </ul>
         </div>
@@ -270,7 +271,7 @@
 
         <div id="downloadSection" style="display: none;">
             <button id="downloadBtn" class="download-btn">
-                💾 書式設定済みファイルをダウンロード
+                💾 印刷用ファイルをダウンロード
             </button>
         </div>
     </div>
@@ -383,12 +384,22 @@
                     if (!worksheet['!rows'][row]) {
                         worksheet['!rows'][row] = {};
                     }
-                    worksheet['!rows'][row].hpt = 50; // 高さを50ポイントに設定
+                    worksheet['!rows'][row].hpx = 50; // 高さを50ピクセルに設定
                 }
 
-                // 罫線を設定
-                updateProgress(80, '格子罫線を設定しています...');
+                // 罫線を設定し、新宿校以外の行をグレーにする
+                updateProgress(80, '格子罫線を設定し、校舎別の色分けを適用しています...');
+                const CAMPUS_COLUMN = 11; // L列（校舎列）のインデックス
+                
                 for (let row = startRow - 1; row < endRow; row++) {
+                    // その行の校舎名を取得
+                    const campusCell = XLSX.utils.encode_cell({r: row, c: CAMPUS_COLUMN});
+                    const campusValue = worksheet[campusCell] ? worksheet[campusCell].v : '';
+                    const isShinjukuCampus = String(campusValue).includes('新宿校') || String(campusValue) === '新宿校';
+                    
+                    // 新宿校以外の行の背景色を設定
+                    const fillColor = isShinjukuCampus ? null : { fgColor: { rgb: 'D3D3D3' } }; // 薄いグレー
+                    
                     for (let col = 0; col <= range.e.c; col++) {
                         const cellAddress = XLSX.utils.encode_cell({r: row, c: col});
                         
@@ -400,13 +411,18 @@
                             worksheet[cellAddress].s = {};
                         }
                         
-                        // 罫線を設定
+                        // xlsx-js-style形式で罫線を設定
                         worksheet[cellAddress].s.border = {
                             top: { style: 'thin', color: { rgb: '000000' } },
                             bottom: { style: 'thin', color: { rgb: '000000' } },
                             left: { style: 'thin', color: { rgb: '000000' } },
                             right: { style: 'thin', color: { rgb: '000000' } }
                         };
+                        
+                        // 新宿校以外の場合は背景色を設定
+                        if (!isShinjukuCampus && fillColor) {
+                            worksheet[cellAddress].s.fill = fillColor;
+                        }
                     }
                 }
 
@@ -430,15 +446,33 @@
 
                 updateProgress(100, '処理完了！');
 
+                // 校舎別の行数をカウント
+                let shinjukuRows = 0;
+                let otherCampusRows = 0;
+                
+                for (let row = startRow - 1; row < endRow; row++) {
+                    const campusCell = XLSX.utils.encode_cell({r: row, c: 11}); // L列
+                    const campusValue = worksheet[campusCell] ? worksheet[campusCell].v : '';
+                    const isShinjukuCampus = String(campusValue).includes('新宿校') || String(campusValue) === '新宿校';
+                    
+                    if (isShinjukuCampus) {
+                        shinjukuRows++;
+                    } else {
+                        otherCampusRows++;
+                    }
+                }
+
                 // 成功メッセージ
                 showStatus('success', `
                     <strong>✅ 処理が完了しました！</strong><br><br>
                     <strong>処理詳細:</strong><br>
                     • 対象シート: ${sheetName}<br>
                     • 処理範囲: ${startRow}行目～${endRow}行目 (計${endRow - startRow + 1}行)<br>
-                    • 行の高さ: 50ポイントに設定<br>
-                    • 罫線: 格子罫線を適用<br><br>
-                    下のボタンから書式設定済みファイルをダウンロードできます。
+                    • 行の高さ: 50ピクセルに設定<br>
+                    • 罫線: 格子罫線を適用<br>
+                    • 新宿校の行: ${shinjukuRows}行<br>
+                    • その他校舎の行: ${otherCampusRows}行 ${otherCampusRows > 0 ? '(グレー背景)' : ''}<br><br>
+                    下のボタンから印刷用ファイルをダウンロードできます。
                 `);
 
                 downloadSection.style.display = 'block';
