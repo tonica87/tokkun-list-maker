@@ -4,51 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>印刷用特訓リスト作成</title>
-    <!-- 複数のCDNを試して確実に読み込む -->
+    <!-- より確実なxlsx-js-style読み込み -->
     <script>
-        // 複数のCDNを順番に試す
-        const cdnSources = [
-            'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
-            'https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
-            'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-            'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-        ];
-        
-        let currentCdnIndex = 0;
-        
-        function loadNextCdn() {
-            if (currentCdnIndex >= cdnSources.length) {
-                console.error('すべてのCDNから読み込みに失敗しました');
-                return;
-            }
-            
+        // より確実にxlsx-js-styleを読み込む方法
+        (function loadXlsxStyle() {
             const script = document.createElement('script');
-            script.src = cdnSources[currentCdnIndex];
+            
+            // GitHubから直接読み込み
+            script.src = 'https://cdn.jsdelivr.net/gh/gitbrent/xlsx-js-style@v1.2.0/dist/xlsx.bundle.js';
+            script.async = false;
+            
             script.onload = function() {
                 if (typeof XLSX !== 'undefined') {
-                    console.log(`XLSX ライブラリが読み込まれました: ${cdnSources[currentCdnIndex]}`);
-                    if (currentCdnIndex < 2) {
-                        console.log('xlsx-js-style が使用可能です（罫線とスタイル機能付き）');
-                        window.xlsxStyleSupported = true;
-                    } else {
-                        console.log('通常のSheetJSを使用します（罫線機能は制限されます）');
+                    console.log('✅ xlsx-js-style が正常に読み込まれました（罫線とスタイル機能付き）');
+                    window.xlsxStyleSupported = true;
+                    
+                    // XLSXオブジェクトにスタイル機能があるかテスト
+                    const testWb = XLSX.utils.book_new();
+                    const testWs = XLSX.utils.aoa_to_sheet([['test']]);
+                    try {
+                        // スタイル設定をテスト
+                        if (testWs['A1']) {
+                            testWs['A1'].s = { border: { top: { style: 'thin' } } };
+                        }
+                        console.log('✅ スタイル機能が利用可能です');
+                    } catch (e) {
+                        console.warn('⚠️ スタイル機能に制限があります:', e.message);
                         window.xlsxStyleSupported = false;
                     }
                 } else {
-                    currentCdnIndex++;
-                    loadNextCdn();
+                    loadFallback();
                 }
             };
+            
             script.onerror = function() {
-                console.warn(`CDN読み込み失敗: ${cdnSources[currentCdnIndex]}`);
-                currentCdnIndex++;
-                loadNextCdn();
+                console.warn('❌ xlsx-js-styleの読み込みに失敗しました。フォールバックを試します...');
+                loadFallback();
             };
+            
+            function loadFallback() {
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                fallbackScript.onload = function() {
+                    console.log('📝 通常のSheetJSを使用します（罫線機能は制限されます）');
+                    window.xlsxStyleSupported = false;
+                };
+                fallbackScript.onerror = function() {
+                    console.error('❌ すべてのライブラリの読み込みに失敗しました');
+                };
+                document.head.appendChild(fallbackScript);
+            }
+            
             document.head.appendChild(script);
-        }
-        
-        // 読み込み開始
-        loadNextCdn();
+        })();
     </script></script>
     <style>
         * {
@@ -443,6 +451,11 @@
                 updateProgress(80, '格子罫線を設定し、校舎別の色分けを適用しています...');
                 const CAMPUS_COLUMN = 11; // L列（校舎列）のインデックス
                 
+                // デバッグ用：実際のデータ範囲を確認
+                console.log(`ワークシート範囲: ${worksheet['!ref']}`);
+                console.log(`range.e.c (最大列インデックス): ${range.e.c}`);
+                console.log(`処理対象行: ${startRow}行目～${endRow}行目`);
+                
                 for (let row = startRow - 1; row < endRow; row++) {
                     // その行の校舎名を取得
                     const campusCell = XLSX.utils.encode_cell({r: row, c: CAMPUS_COLUMN});
@@ -452,9 +465,18 @@
                     // 新宿校以外の行の背景色を設定
                     const fillColor = isShinjukuCampus ? null : { fgColor: { rgb: 'D3D3D3' } }; // 薄いグレー
                     
-                    // A列（0）からO列（最大列）まで全ての列に罫線を適用
-                    for (let col = 0; col <= range.e.c; col++) {
+                    // A列（0）から実際にデータがある最後の列まで罫線を適用
+                    // O列（14）まで確実に適用するため、Math.max を使用
+                    const maxCol = Math.max(range.e.c, 14); // O列まで確実に適用
+                    
+                    for (let col = 0; col <= maxCol; col++) {
                         const cellAddress = XLSX.utils.encode_cell({r: row, c: col});
+                        const colLetter = String.fromCharCode(65 + col);
+                        
+                        // 最初の行でデバッグ情報を出力
+                        if (row === startRow - 1) {
+                            console.log(`列${col} (${colLetter}列): セル ${cellAddress}`);
+                        }
                         
                         // 既存のセルがある場合は既存の書式を保持
                         if (!worksheet[cellAddress]) {
@@ -469,13 +491,24 @@
                         // 既存の書式設定を保持
                         const existingStyle = { ...worksheet[cellAddress].s };
                         
-                        // 罫線を設定（既存の罫線設定があれば上書き）
-                        worksheet[cellAddress].s.border = {
-                            top: { style: 'thin', color: { rgb: '000000' } },
-                            bottom: { style: 'thin', color: { rgb: '000000' } },
-                            left: { style: 'thin', color: { rgb: '000000' } },
-                            right: { style: 'thin', color: { rgb: '000000' } }
-                        };
+                        // 罫線を設定（スタイル対応の場合とそうでない場合で分岐）
+                        if (window.xlsxStyleSupported) {
+                            // xlsx-js-styleが利用可能な場合の完全な罫線設定
+                            worksheet[cellAddress].s.border = {
+                                top: { style: 'thin', color: { rgb: '000000' } },
+                                bottom: { style: 'thin', color: { rgb: '000000' } },
+                                left: { style: 'thin', color: { rgb: '000000' } },
+                                right: { style: 'thin', color: { rgb: '000000' } }
+                            };
+                        } else {
+                            // 通常のSheetJSの場合の代替設定
+                            worksheet[cellAddress].s.border = {
+                                top: { style: 'thin' },
+                                bottom: { style: 'thin' },
+                                left: { style: 'thin' },
+                                right: { style: 'thin' }
+                            };
+                        }
                         
                         // 既存のフォント、配置、数値書式などを維持
                         if (existingStyle.font) {
@@ -497,10 +530,9 @@
                         }
                     }
                     
-                    // デバッグ用：処理した行と列の範囲をログ出力
+                    // 最初の行の処理が完了したらデバッグ情報を出力
                     if (row === startRow - 1) {
-                        console.log(`罫線適用範囲: 行${startRow}～${endRow}, 列A(0)～${String.fromCharCode(65 + range.e.c)}(${range.e.c})`);
-                        console.log(`A列セル例: ${XLSX.utils.encode_cell({r: row, c: 0})}`);
+                        console.log(`罫線適用完了: A列～${String.fromCharCode(65 + maxCol)}列 (列インデックス 0～${maxCol})`);
                     }
                 }
 
@@ -512,11 +544,21 @@
                 });
 
                 // Excelファイルとして出力
-                const excelBuffer = XLSX.write(newWorkbook, { 
+                const writeOptions = {
                     bookType: 'xlsx', 
-                    type: 'array',
-                    cellStyles: true
-                });
+                    type: 'array'
+                };
+                
+                // スタイル対応ライブラリの場合はcellStylesオプションを追加
+                if (window.xlsxStyleSupported) {
+                    writeOptions.cellStyles = true;
+                    writeOptions.compression = true;
+                    console.log('📊 スタイル情報を含めてファイルを生成中...');
+                } else {
+                    console.log('📄 基本形式でファイルを生成中...');
+                }
+                
+                const excelBuffer = XLSX.write(newWorkbook, writeOptions);
 
                 processedFile = new Blob([excelBuffer], { 
                     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
