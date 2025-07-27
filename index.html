@@ -284,9 +284,10 @@
             <h3>🔧 処理内容</h3>
             <ul>
                 <li>データの入っている最後の行を自動検出</li>
-                <li>5行目からデータの最後の行まで、行の高さを50ピクセルに設定</li>
+                <li>5行目からデータの最後の行まで、行の高さを30ピクセルに設定</li>
                 <li>指定範囲のすべてのセルに格子罫線を適用</li>
                 <li>新宿校以外のデータはグレー背景で表示</li>
+                <li>既存の書式設定（フォント、配置など）を維持</li>
                 <li>元のファイルは変更せず、新しいファイルとして保存</li>
             </ul>
         </div>
@@ -435,7 +436,7 @@
                     if (!worksheet['!rows'][row]) {
                         worksheet['!rows'][row] = {};
                     }
-                    worksheet['!rows'][row].hpx = 50; // 高さを50ピクセルに設定
+                    worksheet['!rows'][row].hpx = 30; // 高さを30ピクセルに設定
                 }
 
                 // 罫線を設定し、新宿校以外の行をグレーにする
@@ -451,18 +452,24 @@
                     // 新宿校以外の行の背景色を設定
                     const fillColor = isShinjukuCampus ? null : { fgColor: { rgb: 'D3D3D3' } }; // 薄いグレー
                     
+                    // A列（0）からO列（最大列）まで全ての列に罫線を適用
                     for (let col = 0; col <= range.e.c; col++) {
                         const cellAddress = XLSX.utils.encode_cell({r: row, c: col});
                         
+                        // 既存のセルがある場合は既存の書式を保持
                         if (!worksheet[cellAddress]) {
                             worksheet[cellAddress] = { t: 's', v: '' };
                         }
                         
+                        // 既存のスタイルを保持しつつ新しいスタイルを適用
                         if (!worksheet[cellAddress].s) {
                             worksheet[cellAddress].s = {};
                         }
                         
-                        // xlsx-js-style形式で罫線を設定
+                        // 既存の書式設定を保持
+                        const existingStyle = { ...worksheet[cellAddress].s };
+                        
+                        // 罫線を設定（既存の罫線設定があれば上書き）
                         worksheet[cellAddress].s.border = {
                             top: { style: 'thin', color: { rgb: '000000' } },
                             bottom: { style: 'thin', color: { rgb: '000000' } },
@@ -470,10 +477,30 @@
                             right: { style: 'thin', color: { rgb: '000000' } }
                         };
                         
-                        // 新宿校以外の場合は背景色を設定（スタイル対応ライブラリの場合のみ）
+                        // 既存のフォント、配置、数値書式などを維持
+                        if (existingStyle.font) {
+                            worksheet[cellAddress].s.font = existingStyle.font;
+                        }
+                        if (existingStyle.alignment) {
+                            worksheet[cellAddress].s.alignment = existingStyle.alignment;
+                        }
+                        if (existingStyle.numFmt) {
+                            worksheet[cellAddress].s.numFmt = existingStyle.numFmt;
+                        }
+                        
+                        // 新宿校以外の場合は背景色を設定（既存の背景色は上書き）
                         if (!isShinjukuCampus && fillColor && window.xlsxStyleSupported) {
                             worksheet[cellAddress].s.fill = fillColor;
+                        } else if (existingStyle.fill) {
+                            // 新宿校の場合は既存の背景色を維持
+                            worksheet[cellAddress].s.fill = existingStyle.fill;
                         }
+                    }
+                    
+                    // デバッグ用：処理した行と列の範囲をログ出力
+                    if (row === startRow - 1) {
+                        console.log(`罫線適用範囲: 行${startRow}～${endRow}, 列A(0)～${String.fromCharCode(65 + range.e.c)}(${range.e.c})`);
+                        console.log(`A列セル例: ${XLSX.utils.encode_cell({r: row, c: 0})}`);
                     }
                 }
 
@@ -519,7 +546,7 @@
                     <strong>処理詳細:</strong><br>
                     • 対象シート: ${sheetName}<br>
                     • 処理範囲: ${startRow}行目～${endRow}行目 (計${endRow - startRow + 1}行)<br>
-                    • 行の高さ: 50ピクセルに設定<br>
+                    • 行の高さ: 30ピクセルに設定<br>
                     • 罫線: 格子罫線を適用<br>
                     • 新宿校の行: ${shinjukuRows}行<br>
                     • その他校舎の行: ${otherCampusRows}行 ${otherCampusRows > 0 ? '(グレー背景)' : ''}<br><br>
